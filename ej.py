@@ -1,37 +1,81 @@
 def principal():
-    import numpy
+    from datetime import datetime
+    import os
+    #import numpy
     import time
     import sys
-    from datetime import datetime
+    from scipy import misc
     tiempoInicio = time.clock() 
 
     matrizA = Matriz([[25, 144, 1, 9, 4], [25, 4, 9, 1, 16], [9, 1, 4, 9, 1], [16, 9, 4, 1, 9], [1, 25, 36, 25, 9]])
 
     #Ejemplo de clase de funcion rectángulo
     matrizB = Matriz([[0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0]])
-    print(matrizB.__str__())
-    f = matrizB.filtrarPromediado(3)
-    print(f)
+    print(matrizA.__str__())
+    f = matrizA.calcularImagenIntegral()
+    conv = matrizA.filtrarPromediado(3)
+    #g = Filtro(sys.argv, datetime, os)
+    print("f: ", f)
+    print("conv: ", conv)
 		
     #print((time.clock() - tiempoInicio) * 10 ** 3, "ms") 
 
 
-def definirNombreArchivoSalida(instante):
-	pass
-	"""if():
-	else:
-		return ("%s_%s_%s_%s_%s_%s.bmp" % (instante.day, instante.month, instante.year, instante.hour, instante.minute, instante.second))"""
 
-#class Filtro:
-#%%
+class Filtro:
+    #Pedir sys.argv como parámetro en argumentos
+    def __init__(self, argumentos, datetime, os):
+        
+        #Define el archivo que se va a analizar
+        self.__archivoEntrada = self.encontrarArchivoEntrada(os)
+        #Encuentra el método que se especificó
+        self.__metodo = self.definirMetodo(argumentos)
+        #Define el ancho de ventana
+        self.__anchoVentana = self.definirAnchoVentana(argumentos)
+        #Defune el nombre que tendrá el archivo 
+        self.__nombreSalida = self.definirNombreArchivoSalida(argumentos, datetime.now())
+    
+    def encontrarArchivoEntrada(self, os):
+        rutaImagenEntrada = input("Por favor escriba la ruta del archivo al que desea aplicar el filtro: ")
+        nombreArchivoEntrada = input("Escriba el nombre del archivo a leer: ")
+        directorioRutaRecibida = os.listdir(rutaImagenEntrada)
+        posicionArchivo = nombreArchivoEntrada.index(directorioRutaRecibida)
+        return directorioRutaRecibida[posicionArchivo]
+        
+    
+    def definirMetodo(self, argumentos):
+        #Se retorna el valor que se indique luego del argumento "-m"
+        metodoAUtilizar = argumentos[argumentos.index("-m") + 1]
+        return metodoAUtilizar
+    
+    def definirAnchoVentana(self, argumentos):
+        ancho = argumentos[argumentos.index("-v") + 1]
+        #Si encuentra el siguiente parámetro, esto indica que no se especificó el ancho de ventana
+        if (ancho == "-m"):
+            ancho = 3
+        return ancho
+
+    
+    def definirNombreArchivoSalida(self, argumentos, instante):
+        try:
+            nombreArchivo = argumentos[argumentos.index("-o") + 1]
+            if (nombreArchivo != "-v"):
+                return nombreArchivo
+            else:
+                return ("%s_%s_%s_%s_%s_%s.bmp" % (instante.day, instante.month, instante.year, instante.hour, instante.minute, instante.second))
+        except:
+            return ("%s_%s_%s_%s_%s_%s.bmp" % (instante.day, instante.month, instante.year, instante.hour, instante.minute, instante.second))
+            
+    
+
 class Matriz:
 	
     """
-	Se construye la matriz
-	@param listaDeListas, la matriz recibida en forma de lista de listas
-	@param numFilas, cantidad de filas de la matriz
-	@param numColumnas, cantidad de columnas de la matriz
-	@return la instancia de la matriz
+    Se construye la matriz
+    @param listaDeListas, la matriz recibida en forma de lista de listas
+    @param numFilas, cantidad de filas de la matriz
+    @param numColumnas, cantidad de columnas de la matriz
+    @return la instancia de la matriz
     """
     def __init__(self, listaDeListas, numFilas = 0, numColumnas = 0):
         if(listaDeListas != []):
@@ -47,9 +91,10 @@ class Matriz:
             #self.inicializarConCeros(numFilas, numColumnas)
             print("Se creó una matriz con ceros.")
 
-#%%
+
     """Inicializa una matriz de ceros"""
     def inicializarConCeros(self, numFilas, numColumnas):
+        import numpy
         self.__filas = numFilas
         self.__columnas = numColumnas
         self.__listaDeListas = []
@@ -77,7 +122,6 @@ class Matriz:
         hileraConInformacion = "Matriz: " + str(self.__listaDeListas) + "\n Numero de filas: " + str(self.__filas) + "\n Numero de columnas: " + str(self.__columnas)
         return hileraConInformacion
 
-#%%
     def calcularPromedio(self):
         return self.calcularPromedioAux(0, 0)
 
@@ -94,7 +138,6 @@ class Matriz:
         else:
             return 0
 
-#%%
     def filtrarPromediado(self, tamVentana):
         #Crea una matriz de ceros
         resultado = Matriz([], self.__filas, self.__columnas)
@@ -106,14 +149,15 @@ class Matriz:
         #Cuando no se ha llegado al final
         if(filaActual < self.__filas and columnaActual < self.__columnas):
             #Caso de estar en un extremo: Se toma el valor original que tenía el pixel
-            if(columnaActual - radio < 0 or columnaActual + radio > self.__columnas):
+            if((columnaActual - radio < 0) or (columnaActual + radio > self.__columnas) or (filaActual - radio < 0) or (filaActual + radio > self.__filas)):
                 promedio = self.__listaDeListas[filaActual][columnaActual]
             #Caso de no estar en un extremo
             else:
                 #Se define el trozo a promediar
-                trozoAPromediar = self.__listaDeListas[filaActual][columnaActual - radio : columnaActual + radio + 1]
+                trozoAPromediar = self.definirTrozoFuncion(tamVentana, radio, filaActual, columnaActual, [])
+                #self.__listaDeListas[filaActual][columnaActual - radio : columnaActual + radio + 1]
                 #Se crea una matriz con el trozo a promediar
-                trozoFuncion = Matriz([trozoAPromediar])
+                trozoFuncion = Matriz(trozoAPromediar)
                 #Se realiza el promedio
                 promedio = trozoFuncion.calcularPromedio()
             #Se asigna el valor del resultado a la matriz de ceros
@@ -126,6 +170,23 @@ class Matriz:
         #A la hora de llegar al final de la matriz retorna el resultado
         else:
             return resultado
+        
+    def definirTrozoFuncion(self, tamVentana, radio, filaActual, columnaActual, resultado):
+        #Consigue las filas necesarias
+        filasPreliminares = self.__listaDeListas[filaActual - radio : filaActual + radio + 1]
+        #Hace slicing de las filas con las coulmnas necesitadas
+        filasPreliminares = self.definirTrozoFuncionAux(tamVentana, radio, filasPreliminares, columnaActual, resultado, 0)
+        return filasPreliminares
+    
+    def definirTrozoFuncionAux(self, tamVentana, radio, filas, columnaActual, resultado, indice): #indice se podria cambiar por fila actual
+        if(indice < tamVentana):
+            filaActual = filas[indice]
+            filaActual = filaActual[columnaActual - radio : columnaActual + radio + 1]
+            resultado.append(filaActual)
+            self.definirTrozoFuncionAux(tamVentana, radio, filas, columnaActual, resultado, indice + 1)
+        else:
+            return resultado
+            
 
     def calcularImagenIntegral(self):
         #Crea una matriz de ceros
@@ -147,10 +208,43 @@ class Matriz:
             valor = self.calcularImagenIntegralAux(fila - 1, columna, imagenIntegral) + self.calcularImagenIntegralAux(fila, columna - 1, imagenIntegral) + self.__listaDeListas[fila][columna] - self.calcularImagenIntegralAux(fila - 1, columna - 1, imagenIntegral);
             #Le asigna el valor calculado a la matriz de ceros
             imagenIntegral.setValor(fila, columna, valor);
-            #???????????????????????????????
+            #??????????????????????????????? No sé por qué retorna el valor
             return valor
+        
+    def filtrarPromediadoLocalImagenIntegral(self, tamVentana):
+        
+        imagenIntegral = self.calcularImagenIntegral()
+        resultado = Matriz([], self.__filas, self.__columnas)
+        
+
+    def filtrarPromediadoLocalImagenIntegralAux(self, tamVentana, resultado, filaActual, columnaActual, imagenIntegral):
+        radio = tamVentana // 2;
+        if(filaActual < self.__filas and columnaActual  < self.__columnas):
+            #caso extremo invalido
+            if(filaActual - radio < 0 or filaActual + radio > self.__filas or columnaActual - radio < 0 or columnaActual + radio > self.__columnas ):
+                promedio = self.__listaDeListas[filaActual][columnaActual];
+            else: #caso no extremo
+                x0 = filaActual - radio - 1
+                y0 = columnaActual - radio - 1
+                x1 = filaActual + radio
+                y1 = columnaActual  + radio
+                A = (x0, y0)
+                B = (x1, y0)
+                C = (x0, y1)
+                D = (x1, y1)
+                IsigmaA = 0
+                IsigmaB = 0
+                IsigmaC = 0
+                IsigmaD = imagenIntegral.getValor(D[0], D[1])
+                if(A[0] > 0 and A[1] > 0):
+                    IsigmaA = imagenIntegral.getValor(A[0], A[1])
+                if(B[0] > 0 and B[1] > 0):
+                    IsigmaB = imagenIntegral.getValor(B[0], B[1])
+                if(C[0] > 0 and C[1] > 0):
+                    IsigmaC = imagenIntegral.getValor(C[0], C[1])
+                promedio = (IsigmaA  + IsigmaD - IsigmaC - IsigmaB ) / (tamVentana * tamVentana)
+                resultado.setValor(filaActual, columnaActual, promedio)
 
 
-#%%
 
 principal()
