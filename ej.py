@@ -1,10 +1,12 @@
+from datetime import datetime
+import os
+import numpy
+import time
+import sys
+from scipy import misc
+    
 def principal():
-    from datetime import datetime
-    import os
-    #import numpy
-    import time
-    import sys
-    from scipy import misc
+    
     tiempoInicio = time.clock() 
 
     matrizA = Matriz([[25, 144, 1, 9, 4], [25, 4, 9, 1, 16], [9, 1, 4, 9, 1], [16, 9, 4, 1, 9], [1, 25, 36, 25, 9]])
@@ -12,10 +14,10 @@ def principal():
     #Ejemplo de clase de funcion rectángulo
     matrizB = Matriz([[0, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0]])
     print(matrizA.__str__())
-    f = matrizA.calcularImagenIntegral()
+    #f = matrizA.filtrarPromediadoLocalImagenIntegral(3)
     conv = matrizA.filtrarPromediado(3)
     #g = Filtro(sys.argv, datetime, os)
-    print("f: ", f)
+    #print("f: ", f)
     print("conv: ", conv)
 		
     #print((time.clock() - tiempoInicio) * 10 ** 3, "ms") 
@@ -24,8 +26,8 @@ def principal():
 
 class Filtro:
     #Pedir sys.argv como parámetro en argumentos
-    def __init__(self, argumentos, datetime, os):
-        
+    def __init__(self, argumentos):
+        sys.setrecursionlimit(10**6)
         #Define el archivo que se va a analizar
         self.__archivoEntrada = self.encontrarArchivoEntrada(os)
         #Encuentra el método que se especificó
@@ -35,7 +37,7 @@ class Filtro:
         #Defune el nombre que tendrá el archivo 
         self.__nombreSalida = self.definirNombreArchivoSalida(argumentos, datetime.now())
     
-    def encontrarArchivoEntrada(self, os):
+    def encontrarArchivoEntrada(self):
         rutaImagenEntrada = input("Por favor escriba la ruta del archivo al que desea aplicar el filtro: ")
         nombreArchivoEntrada = input("Escriba el nombre del archivo a leer: ")
         directorioRutaRecibida = os.listdir(rutaImagenEntrada)
@@ -141,7 +143,8 @@ class Matriz:
     def filtrarPromediado(self, tamVentana):
         #Crea una matriz de ceros
         resultado = Matriz([], self.__filas, self.__columnas)
-        return self.filtrarPromediadoAux(tamVentana, resultado, 0, 0)
+        resultado = self.filtrarPromediadoAux(tamVentana, resultado, 0, 0)
+        return resultado.resetearValoresEsquineros(tamVentana, self.__listaDeListas, resultado, 0, 0)
 
     def filtrarPromediadoAux(self, tamVentana, resultado, filaActual, columnaActual):
         #El radio se saca a partir del tam. de ventana
@@ -154,10 +157,38 @@ class Matriz:
             #Caso de no estar en un extremo
             else:
                 #Se define el trozo a promediar
-                trozoAPromediar = self.definirTrozoFuncion(tamVentana, radio, filaActual, columnaActual, [])
-                #self.__listaDeListas[filaActual][columnaActual - radio : columnaActual + radio + 1]
+                trozoAPromediar = self.__listaDeListas[filaActual][columnaActual - radio : columnaActual + radio + 1]
+                #self.definirTrozoFuncion(tamVentana, radio, filaActual, columnaActual, [])
+                
                 #Se crea una matriz con el trozo a promediar
-                trozoFuncion = Matriz(trozoAPromediar)
+                trozoFuncion = Matriz([trozoAPromediar])
+                #Se realiza el promedio
+                promedio = trozoFuncion.calcularPromedio()
+            #Se asigna el valor del resultado a la matriz de ceros
+            resultado.setValor(filaActual, columnaActual, promedio)
+            #Continúo con el siguiente promedio
+            return self.filtrarPromediadoAux(tamVentana, resultado, filaActual, columnaActual + 1)
+        #Cuando se llega al final de la fila pasa a la siguiente
+        elif(filaActual < self.__filas and columnaActual == self.__columnas):
+            return self.filtrarPromediadoAux(tamVentana, resultado, filaActual + 1, 0)
+        #A la hora de llegar al final de la matriz retorna el resultado
+        else:
+            return self.filtrarPromediadoAuxConColumnas(tamVentana, resultado, 0, 0) #Llamar funcion para hacer promedio por columnas
+    
+    def filtrarPromediadoAuxConColumnas(self, tamVentana, resultado, filaActual, columnaActual):
+        #El radio se saca a partir del tam. de ventana
+        radio = tamVentana // 2
+        #Cuando no se ha llegado al final
+        if(filaActual < self.__filas and columnaActual < self.__columnas):
+            #Caso de estar en un extremo: Se toma el valor original que tenía el pixel
+            if((columnaActual - radio < 0) or (columnaActual + radio > self.__columnas) or (filaActual - radio < 0) or (filaActual + radio > self.__filas) or (columnaActual == 0) or (columnaActual == self.__columnas)):
+                promedio = self.__listaDeListas[filaActual][columnaActual]
+            #Caso de no estar en un extremo
+            else:
+                #Se define el trozo a promediar
+                trozoAPromediar = self.definirElementosAPromediar(filaActual - radio, filaActual + radio, columnaActual, []) #Modificar esto de modo que haya una lista con los elementos promediados a volver a promediar
+                #Se crea una matriz con el trozo a promediar
+                trozoFuncion = Matriz([trozoAPromediar])
                 #Se realiza el promedio
                 promedio = trozoFuncion.calcularPromedio()
             #Se asigna el valor del resultado a la matriz de ceros
@@ -171,12 +202,37 @@ class Matriz:
         else:
             return resultado
         
-    def definirTrozoFuncion(self, tamVentana, radio, filaActual, columnaActual, resultado):
-        #Consigue las filas necesarias
+    def resetearValoresEsquineros(self, tamVentana, matrizOriginal, matrizModificada, filaActual, columnaActual):
+        radio = tamVentana // 2
+        if (filaActual < matrizOriginal.__filas and columnaActual < matrizModificada.__columnas):
+            if((columnaActual - radio < 0) or (columnaActual + radio > self.__columnas) or (filaActual - radio < 0) or (filaActual + radio > self.__filas)):
+                matrizModificada[filaActual][columnaActual].setValor(filaActual, columnaActual, matrizOriginal[filaActual][columnaActual])
+            return self.resetearValoresEsquineros(tamVentana, matrizOriginal, matrizModificada, filaActual, columnaActual + 1)
+        elif(filaActual < matrizOriginal.__filas and columnaActual == matrizOriginal.__columnas):
+            return self.resetearValoresEsquineros(tamVentana, matrizOriginal, matrizModificada, filaActual + 1, 0)
+        else:
+            return matrizModificada
+            
+            
+   
+    
+    
+    
+
+    def definirElementosAPromediar(self, filaActual, filaFinal, columna, resultado):
+        if (filaActual <= filaFinal):
+            resultado += self.__listaDeListas[filaActual][columna]
+            return self.definirElementosAPromediar(filaActual + 1, filaFinal, columna, resultado)
+        else:
+            return resultado
+        
+        
+        """#Consigue las filas necesarias
         filasPreliminares = self.__listaDeListas[filaActual - radio : filaActual + radio + 1]
         #Hace slicing de las filas con las coulmnas necesitadas
         filasPreliminares = self.definirTrozoFuncionAux(tamVentana, radio, filasPreliminares, columnaActual, resultado, 0)
         return filasPreliminares
+    
     
     def definirTrozoFuncionAux(self, tamVentana, radio, filas, columnaActual, resultado, indice): #indice se podria cambiar por fila actual
         if(indice < tamVentana):
@@ -185,7 +241,7 @@ class Matriz:
             resultado.append(filaActual)
             self.definirTrozoFuncionAux(tamVentana, radio, filas, columnaActual, resultado, indice + 1)
         else:
-            return resultado
+            return resultado"""
             
 
     def calcularImagenIntegral(self):
@@ -213,17 +269,23 @@ class Matriz:
         
     def filtrarPromediadoLocalImagenIntegral(self, tamVentana):
         
-        imagenIntegral = self.calcularImagenIntegral()
-        resultado = Matriz([], self.__filas, self.__columnas)
+        imagenIntegral = self.calcularImagenIntegral();
+        resultado = Matriz([], self.__filas, self.__columnas);
+        
+        return self.filtrarPromediadoLocalImagenIntegralAux(tamVentana, resultado, 0, 0, imagenIntegral);
         
 
     def filtrarPromediadoLocalImagenIntegralAux(self, tamVentana, resultado, filaActual, columnaActual, imagenIntegral):
         radio = tamVentana // 2;
         if(filaActual < self.__filas and columnaActual  < self.__columnas):
             #caso extremo invalido
-            if(filaActual - radio < 0 or filaActual + radio > self.__filas or columnaActual - radio < 0 or columnaActual + radio > self.__columnas ):
-                promedio = self.__listaDeListas[filaActual][columnaActual];
+            if(filaActual - radio < 0 or filaActual + radio >= self.__filas or columnaActual - radio < 0 or columnaActual + radio >= self.__columnas ):
+                promedio = self.__listaDeListas[filaActual][columnaActual]                
             else: #caso no extremo
+
+                print("IMAGEN INTEGRAL 2")
+                print(imagenIntegral)
+                
                 x0 = filaActual - radio - 1
                 y0 = columnaActual - radio - 1
                 x1 = filaActual + radio
@@ -236,14 +298,20 @@ class Matriz:
                 IsigmaB = 0
                 IsigmaC = 0
                 IsigmaD = imagenIntegral.getValor(D[0], D[1])
-                if(A[0] > 0 and A[1] > 0):
+                if(A[0] >= 0 and A[1] >= 0):
                     IsigmaA = imagenIntegral.getValor(A[0], A[1])
-                if(B[0] > 0 and B[1] > 0):
+                if(B[0] >= 0 and B[1] >= 0):
                     IsigmaB = imagenIntegral.getValor(B[0], B[1])
-                if(C[0] > 0 and C[1] > 0):
+                if(C[0] >= 0 and C[1] >= 0):
                     IsigmaC = imagenIntegral.getValor(C[0], C[1])
-                promedio = (IsigmaA  + IsigmaD - IsigmaC - IsigmaB ) / (tamVentana * tamVentana)
-                resultado.setValor(filaActual, columnaActual, promedio)
+                promedio = (IsigmaA  + IsigmaD - IsigmaC - IsigmaB ) / (tamVentana * tamVentana);
+            #se asigna el valor promedio calculado segun los 2 casos
+            resultado.setValor(filaActual, columnaActual, promedio)
+            return self.filtrarPromediadoLocalImagenIntegralAux(tamVentana, resultado, filaActual, columnaActual + 1, imagenIntegral)         
+        elif(filaActual < self.__filas and columnaActual == self.__columnas):
+            return self.filtrarPromediadoLocalImagenIntegralAux(tamVentana, resultado, filaActual + 1, 0, imagenIntegral)
+        else:
+            return resultado
 
 
 
